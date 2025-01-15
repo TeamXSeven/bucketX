@@ -15,8 +15,7 @@ func WelcomeController(c *gin.Context) {
 }
 
 func UploadFileController(c *gin.Context) {
-	filename, err := services.SaveUploadedFile(c)
-	bucketId := c.PostForm("bucket_id")
+	fileKey, err := services.SaveUploadedFile(c)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -27,16 +26,14 @@ func UploadFileController(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":  "File uploaded successfully",
-		"filename": filename,
-		"path": 	 "/api/file/" + bucketId + "/" + filename,
+		"file_key": fileKey,
 	})
 }
 
 func FetchFileController(c *gin.Context) {
-	filename := c.Param("filename")
-	bucketId := c.Param("bucket_id")
+	fileKey := c.Param("file_key")
 
-	filepath, err := services.FetchFilePath(filename, bucketId)
+	filePath, err := services.FetchFilePath(fileKey)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -44,5 +41,5 @@ func FetchFileController(c *gin.Context) {
 		return
 	}
 
-	c.File(filepath)
+	c.File(filePath)
 }

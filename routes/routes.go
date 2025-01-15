@@ -10,7 +10,7 @@ func RegisterRoutes(router *gin.Engine) {
 	api := router.Group("/api")
 	{
 		api.GET("/", controllers.WelcomeController)
-		api.GET("/file/:bucket_id/:filename", controllers.FetchFileController)
+		api.GET("/file/:file_key", controllers.FetchFileController)
 		api.POST("/file", controllers.UploadFileController)
 	}
 }

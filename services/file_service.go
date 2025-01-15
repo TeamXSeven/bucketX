@@ -12,33 +12,40 @@ import (
 func SaveUploadedFile(c *gin.Context) (string, error) {
 	file, err := c.FormFile("file")
 	bucketId := c.PostForm("bucket_id")
+	fileKey := c.PostForm("file_key")
+
 	if err != nil {
 		return "", fmt.Errorf("failed to retrieve file: %v", err)
 	}
 
 	if bucketId == "" {
-		return "", fmt.Errorf("bucket_id is required")
+		return "", fmt.Errorf("missing required field: bucket_id")
 	}
 
-	filename := filepath.Base(file.Filename)
-	uuidFilename := uuid.New().String() + "-" + filename
-
-	if err := c.SaveUploadedFile(file, filepath.Join("uploads", bucketId, uuidFilename));
-
-	err != nil {
-		return "", fmt.Errorf("failed to save file: %v", err)
+	if fileKey == "" {
+		fileKey = uuid.New().String()
 	}
 
-	return uuidFilename, nil
+	fileExt := filepath.Ext(file.Filename)
+	if fileExt == "" {
+		return "", fmt.Errorf("uploaded file has no extension")
+	}
+
+	storedFileName := fileKey + fileExt
+
+	uploadDir := filepath.Join("uploads", bucketId)
+	if err := c.SaveUploadedFile(file, filepath.Join(uploadDir, storedFileName)); err != nil {
+		return "", fmt.Errorf("failed to save uploaded file: %v", err)
+	}
+
+	return fileKey, nil
 }
 
-func FetchFilePath(filename string, bucketId string) (string, error) {
-	filePath := filepath.Join("uploads", bucketId, filename)
+func FetchFilePath(fileKey string) (string, error) {
+	filePath := filepath.Join("uploads", fileKey)
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			return "", fmt.Errorf("file does not exist: %v", err)
-	} else if err != nil {
-			return "", fmt.Errorf("failed to retrieve file info: %v", err)
+		return "", fmt.Errorf("file not found")
 	}
 
 	return filePath, nil
