@@ -3,6 +3,9 @@ package services
 import (
 	"fmt"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"os"
 	"path/filepath"
@@ -54,8 +57,8 @@ func preprocessImage(filePath string) (tensor.Tensor, error) {
 	img, _, er := image.Decode(uploadedFile)
 
 	if er != nil {
-		fmt.Printf("failed to decode image: %v", err)
-		return nil, err
+		fmt.Printf("failed to decode image: %v", er)
+		return nil, er
 	}
 
 	rgbaImg := image.NewRGBA(img.Bounds())
@@ -77,24 +80,48 @@ func preprocessImage(filePath string) (tensor.Tensor, error) {
 		}
 	}
 
-	t := tensor.New(tensor.WithShape(1, 3, 224, 224), tensor.WithBacking(imageData))
+	t := tensor.New(
+		tensor.WithShape(1, 3, 224, 224),
+		tensor.Of(tensor.Float32),
+		tensor.WithBacking(imageData),
+	)
 
 	return saveToVectorDB(t)
 }
 
 func saveToVectorDB(tensor tensor.Tensor) (tensor.Tensor, error) {
 	backend := simple.NewSimpleGraph()
-	model := onnx.NewModel(backend)
-	b, _ := os.ReadFile("ResNet50.onnx")
-
-	err := model.UnmarshalBinary(b)
-	if err != nil {
-		log.Fatal(err)
+	if backend == nil {
+		return nil, fmt.Errorf("failed to initialize backend graph")
 	}
 
-	model.SetInput(0, tensor)
+	model := onnx.NewModel(backend)
+	b, err := os.ReadFile("./dl-models/resnet50-v2-7.onnx")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read ONNX model file: %v", err)
+	}
 
-	output, _ := model.GetOutputTensors()
+	err = model.UnmarshalBinary(b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ONNX model: %v", err)
+	}
+
+	log.Printf("Input tensor shape: %v, type: %T", tensor.Shape(), tensor.Data())
+
+	expectedShape := []int{1, 3, 224, 224}
+	if !tensor.Shape().Eq(expectedShape) {
+		return nil, fmt.Errorf("input tensor shape %v does not match expected shape %v", tensor.Shape(), expectedShape)
+	}
+
+	err = model.SetInput(0, tensor)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set model input: %v", err)
+	}
+
+	output, err := model.GetOutputTensors()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get output tensors: %v", err)
+	}
 
 	return output[0], nil
 }
